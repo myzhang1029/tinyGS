@@ -143,7 +143,8 @@ int16_t Radio::begin()
   // attach the ISR to radio interrupt
   radioHal->setDio0Action(setFlag);
   // start listening for LoRa packets
-  Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
+  //Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
+  Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,m.frequency);
   CHECK_ERROR(radioHal->startReceive());
   status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
 
@@ -321,37 +322,72 @@ uint8_t Radio::listen()
        if (allow_decode){
       String modo=status.modeminfo.modem_mode;
       if (modo=="FSK"){
-        int bytes_sincro=0;
-          for (int i=0;i<sizeof(status.modeminfo.fsw);i++){
-            if (status.modeminfo.fsw[i]!=0){bytes_sincro++;}
+      int bytes_sincro=0;
+      int frame_error=0;
+      if (status.modeminfo.framing==1){ //framing=1 -> AX.25 Frame
+        Log::console(PSTR("Processing AX.25 frame..."));
+        // Add Synch Frame Word to the received data 
+        for (int i=0;i<sizeof(status.modeminfo.fsw);i++){
+          if (status.modeminfo.fsw[i]!=0){bytes_sincro++;}
+        }
+        size_t buffSize_pck = bytes_sincro + respLen;
+        uint8_t *respFrame_fsk = new uint8_t[buffSize_pck];
+        for (int i=0;i<bytes_sincro;i++){
+          respFrame_fsk[i]=status.modeminfo.fsw[i];
           }
-          buffSize = (respLen+bytes_sincro) * 2 + 1;
-          if (buffSize > 255)
-            buffSize = 255;
-          char *byteStr_fsk = new char[buffSize];
-          for (int i=0;i<bytes_sincro;i++){
-            sprintf(byteStr_fsk+(i*2),"%02X", status.modeminfo.fsw[i]);}
-          for (int i = 0; i < respLen; i++)
-          {
-            sprintf(byteStr_fsk + (bytes_sincro + i) * 2 % (buffSize - 1), "%02X", respFrame[i]);
-            if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1)
-              Log::console(PSTR("%s"), byteStr_fsk); // print before the buffer is going to loop back
-          }
-          Log::console(PSTR("Packet Buffer Size: %i"), buffSize);
-          int coding=Satellites::coding(status.modeminfo.NORAD);
-          if (coding==1){
-            char *ax25;
-            unsigned char *ax25bin;
-            size_t sizeAx25bin=0;
-            ax25=new char[buffSize];
-            ax25bin=new unsigned char[buffSize];
-            BitCode::nrz2ax25(byteStr_fsk,buffSize,ax25,ax25bin,&sizeAx25bin);
-            Log::console(PSTR("%s"),ax25);
-            //RAW packet is replaced by the processed packet.
-            respFrame=ax25bin;
-            respLen=sizeAx25bin;
-          }
-          delete[] byteStr_fsk;
+        for (int i = 0; i < respLen; i++)
+        {
+          respFrame_fsk[bytes_sincro+i]=respFrame[i];
+        }
+        uint8_t *ax25bin;
+        size_t sizeAx25bin=0;
+        ax25bin=new uint8_t[buffSize_pck];
+        frame_error=BitCode::nrz2ax25(respFrame_fsk,buffSize_pck,ax25bin,&sizeAx25bin);
+        if (frame_error!=0){
+          Log::console(PSTR("Frame error!"));
+        }
+        //RAW packet is replaced by the processed packet.
+        respFrame=ax25bin;
+        respLen=sizeAx25bin;
+      }
+            
+      if (frame_error==0 && status.modeminfo.crc_by_sw){
+        size_t newsize=respLen-status.modeminfo.crc_nbytes;
+        RadioLibCRCInstance.size = status.modeminfo.crc_nbytes*8;
+        RadioLibCRCInstance.poly = status.modeminfo.crc_poly;
+        RadioLibCRCInstance.init = status.modeminfo.crc_init;
+        RadioLibCRCInstance.out = status.modeminfo.crc_finalxor;
+        RadioLibCRCInstance.refIn = status.modeminfo.crc_refIn;
+        RadioLibCRCInstance.refOut = status.modeminfo.crc_refOut;
+        uint16_t fcs=RadioLibCRCInstance.checksum(respFrame,newsize);
+        //If the input is reflected (refIn=true) for the CRC calculation, the CRC value
+        //is computed from last two bytes of respFrame reflecting in first place the bytes. 
+        //If the input is not reflected (refIn=false) then the CRC calculation is computed
+        //with the two last bytes directly taken from respFrame.
+        uint8_t msb,lsb,msbinv,lsbinv;
+        msb=respFrame[respLen-2];
+        lsb=respFrame[respLen-1];
+        BitCode::invierte_bits_de_un_byte(msb,&msbinv);
+        BitCode::invierte_bits_de_un_byte(lsb,&lsbinv);
+        uint16_t crcfield=0;
+        if (status.modeminfo.crc_refIn){
+          crcfield=msbinv*256+lsbinv;
+        }else{
+          crcfield=msb*256+lsb;
+        }
+        Log::console(PSTR("Received CRC: %X Calculated CRC: %X"),crcfield,fcs);
+        //log_packet(respFrame,respLen);
+        //packet_logged=true;
+        if (fcs!=crcfield){
+            Log::console(PSTR("Error_CRC"));
+            char *cad=new char[10];
+            respLen=10;
+            sprintf(cad,"Error_CRC");
+            for (int i=0;i<10;i++){
+              respFrame[i]=(char)cad[i];
+            }
+          }          
+        }
       }
     }
     
