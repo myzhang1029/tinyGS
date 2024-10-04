@@ -136,6 +136,15 @@ int16_t Radio::begin()
     if (m.len!=0) CHECK_ERROR(radioHal->fixedPacketLengthMode(m.len));
     CHECK_ERROR(radioHal->setSyncWord(m.fsw, m.swSize));
     CHECK_ERROR(radioHal->setEncoding(m.enc));
+    uint16_t seed;
+    if (m.enc==2){
+      if (board.L_radio==RADIO_SX1268)
+      { 
+        CHECK_ERROR(radioHal->setWhitening(true,m.whitening_seed));
+      }else{
+        Log::console(PSTR("The whitening seed could not be configured for your board"));
+      }
+    }      
   }
 
   // set the function that will be called
