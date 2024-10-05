@@ -328,7 +328,8 @@ uint8_t Radio::listen()
     }
     delete[] byteStr;
 
-       if (allow_decode){
+    bool packet_logged=false;
+    if (allow_decode){
       String modo=status.modeminfo.modem_mode;
       if (modo=="FSK"){
       int bytes_sincro=0;
@@ -385,8 +386,8 @@ uint8_t Radio::listen()
           crcfield=msb*256+lsb;
         }
         Log::console(PSTR("Received CRC: %X Calculated CRC: %X"),crcfield,fcs);
-        //log_packet(respFrame,respLen);
-        //packet_logged=true;
+        Log::log_packet(respFrame,respLen);
+        packet_logged=true;
         if (fcs!=crcfield){
             Log::console(PSTR("Error_CRC"));
             char *cad=new char[10];
@@ -399,7 +400,9 @@ uint8_t Radio::listen()
         }
       }
     }
-    
+
+    if (!packet_logged){Log::log_packet(respFrame,respLen);}
+
     // if Filter enabled filter the received packet
     if (status.modeminfo.filter[0] != 0)
     {
