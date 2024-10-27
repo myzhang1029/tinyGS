@@ -64,6 +64,8 @@
 
 **************************************************************************/
 
+#define MODEMSTAT_PIN 13
+
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
 #else
@@ -165,6 +167,7 @@ void setup()
   }
   
   printControls();
+  pinMode(MODEMSTAT_PIN, OUTPUT);
 }
 
 void loop() {  
@@ -213,6 +216,11 @@ void loop() {
 
   mqtt.loop();
   OTA::loop();
+  uint8_t modemstat = radio.getModemStatus();
+  if (modemstat & 0x01)
+    digitalWrite(MODEMSTAT_PIN, HIGH);
+  else
+    digitalWrite(MODEMSTAT_PIN, LOW);
   if (configManager.getOledBright() != 0) displayUpdate();
 }
 
