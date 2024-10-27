@@ -78,6 +78,10 @@ public:
   int16_t sendTx(uint8_t* data, size_t length);
   int16_t sendTestPacket();
   int16_t remoteSetFreqOffset(char* payload, size_t payload_len);
+  uint8_t getModemStatus()
+  {
+    return radioHal->getModemStatus();
+  }
 
    
 private:

@@ -126,6 +126,18 @@ float RadioHal<SX1276>::getRSSI(bool packet,bool skipReceive)
     return radio->getRSSI(packet,skipReceive);
 }
 
+template<>
+uint8_t RadioHal<SX1278>::getModemStatus()
+{
+    return radio->getModemStatus();
+}
+
+template<>
+uint8_t RadioHal<SX1276>::getModemStatus()
+{
+    return radio->getModemStatus();
+}
+
 
 
 

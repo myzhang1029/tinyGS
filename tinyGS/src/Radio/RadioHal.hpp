@@ -27,6 +27,7 @@ public:
   virtual int16_t setFrequency(float freq) = 0;
   virtual int16_t setEncoding(uint8_t encoding) = 0;
   virtual void setRfSwitchPins(uint8_t rxEnPin, uint8_t txEnPin) = 0;
+  virtual uint8_t getModemStatus() = 0;
 };
 
 
@@ -106,6 +107,10 @@ public:
     radio->setRfSwitchPins(rxEnPin, txEnPin);
   }
 
+  uint8_t getModemStatus()
+  {
+    return 0;
+  }
 
 private:
   T* radio;
