@@ -497,7 +497,7 @@ bool IotWebConf2::isIp(String str)
   for (size_t i = 0; i < str.length(); i++)
   {
     int c = str.charAt(i);
-    if (c != '.' && c != ':' && (c < '0' || c > '9'))
+    if (c != '.' && c != ':' && c != '[' && c != ']' && (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F'))
     {
       return false;
     }
